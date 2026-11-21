@@ -1,0 +1,39 @@
+name: build-apk
+on:
+  workflow_dispatch:
+    inputs:
+      build_id:
+        description: Build id
+        required: true
+permissions:
+  contents: write
+concurrency:
+  group: apk-${{ inputs.build_id }}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate id
+        run: echo "${{ inputs.build_id }}" | grep -Eq '^[a-z0-9]{8,32}$'
+      - name: Unpack project
+        run: mkdir proj && unzip -q "builds/${{ inputs.build_id }}.zip" -d proj
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.7' }
+      - name: Build APK
+        working-directory: proj
+        run: gradle assembleDebug --no-daemon -q
+      - name: Publish
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          cp proj/app/build/outputs/apk/debug/app-debug.apk app.apk
+          gh release create "build-${{ inputs.build_id }}" app.apk --title "Build ${{ inputs.build_id }}" --notes "AstraPanel App Builder" --latest=false
+      - name: Clean up
+        if: always()
+        run: |
+          git config user.name astrapanel-bot; git config user.email bot@astrapanel.site
+          git rm -q "builds/${{ inputs.build_id }}.zip" && git commit -qm "clean ${{ inputs.build_id }}" && git pull -q --rebase && git push -q || true
