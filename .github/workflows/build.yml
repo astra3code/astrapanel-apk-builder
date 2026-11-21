@@ -19,6 +19,8 @@ jobs:
         run: echo "${{ inputs.build_id }}" | grep -Eq '^[a-z0-9]{8,32}$'
       - name: Unpack project
         run: mkdir proj && unzip -q "builds/${{ inputs.build_id }}.zip" -d proj
+      - name: Bundle WordPress plugins and themes
+        run: python3 scripts/bundle-wordpress.py proj
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
       - uses: gradle/actions/setup-gradle@v4
